@@ -14,3 +14,5 @@ vsphere-influxdb.json
 
 # Vim swap files
 *.swp
+
+.idea/*
