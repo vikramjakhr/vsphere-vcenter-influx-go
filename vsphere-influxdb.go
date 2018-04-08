@@ -302,7 +302,7 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 	// Retrieve properties for hosts
 	var hsmo []mo.HostSystem
 	if len(hostRefs) > 0 {
-		err = pc.Retrieve(ctx, hostRefs, []string{"parent", "summary"}, &hsmo)
+		err = pc.Retrieve(ctx, hostRefs, []string{"parent", "summary", "datastore"}, &hsmo)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -332,7 +332,7 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 	// Retrieve summary property for all datastores
 	var dss []mo.Datastore
 	if len(datastoreRefs) > 0 {
-		err = pc.Retrieve(ctx, datastoreRefs, []string{"summary"}, &dss)
+		err = pc.Retrieve(ctx, datastoreRefs, []string{"summary", "host", "vm"}, &dss)
 		if err != nil {
 			log.Fatal(err)
 			return
@@ -727,7 +727,14 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 				"free_space":       datastore.Summary.FreeSpace,
 				"maintenance_mode": datastore.Summary.MaintenanceMode,
 				"accessible":       datastore.Summary.Accessible,
+				"url":              datastore.Summary.Url,
+				"type":             datastore.Summary.Type,
 			}
+			/*			stdlog.Println("==================================")
+						spew.Dump(datastore.Host)
+						stdlog.Println("==================================")
+						spew.Dump(datastore.Vm)
+						stdlog.Println("==================================")*/
 			datastoreTags := map[string]string{"ds_name": datastore.Summary.Name, "host": vcName}
 			pt4, err := influxclient.NewPoint(config.InfluxDB.Prefix+"datastore", datastoreTags, datastoreFields, time.Now())
 			if err != nil {
