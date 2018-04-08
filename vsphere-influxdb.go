@@ -103,7 +103,6 @@ var getversion, debug, test bool
 var stdlog, errlog *log.Logger
 var version = "master"
 
-
 // Connect to the actual vCenter connection used to query data
 func (vcenter *VCenter) Connect() error {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -423,7 +422,7 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 
 	// Initialize the maps that will hold the extra tags and metrics for VMs
 	hostSummary := make(map[types.ManagedObjectReference]map[string]string)
-	hostExtraMetrics := make(map[types.ManagedObjectReference]map[string]int64)
+	hostExtraMetrics := make(map[types.ManagedObjectReference]map[string]interface{})
 
 	for _, host := range hsmo {
 
@@ -433,14 +432,23 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		hostSummary[host.Self]["cluster"] = hostToCluster[host.Self]
 
 		// Extra metrics per host
-		hostExtraMetrics[host.Self] = make(map[string]int64)
+		hostExtraMetrics[host.Self] = make(map[string]interface{})
 		hostExtraMetrics[host.Self]["uptime"] = int64(host.Summary.QuickStats.Uptime)
-		hostExtraMetrics[host.Self]["cpu_corecount_total"] = int64(host.Summary.Hardware.NumCpuThreads)
+		hostExtraMetrics[host.Self]["cpu_corecount_total"] = host.Summary.Hardware.NumCpuCores
+		hostExtraMetrics[host.Self]["cpu_threads_total"] = int64(host.Summary.Hardware.NumCpuThreads)
+		hostExtraMetrics[host.Self]["hardware_vendor"] = host.Summary.Hardware.Vendor
+		hostExtraMetrics[host.Self]["hardware_model"] = host.Summary.Hardware.Model
+		hostExtraMetrics[host.Self]["cpu_model"] = host.Summary.Hardware.CpuModel
+		hostExtraMetrics[host.Self]["cpu_mhz_toal"] = host.Summary.Hardware.CpuMhz
+		hostExtraMetrics[host.Self]["memory_size_total"] = host.Summary.Hardware.MemorySize
+		hostExtraMetrics[host.Self]["nics_toal"] = host.Summary.Hardware.NumNics
 	}
 
 	// Initialize the maps that will hold the extra tags and metrics for VMs
 	vmSummary := make(map[types.ManagedObjectReference]map[string]string)
-	vmExtraMetrics := make(map[types.ManagedObjectReference]map[string]int64)
+	vmExtraMetrics := make(map[types.ManagedObjectReference]map[string]interface{})
+
+	vmCount := make(map[string]int)
 
 	// Assign extra details per VM in vmSummary
 	for _, vm := range vmmo {
@@ -460,11 +468,27 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		}
 		if vm.Summary.Runtime.Host != nil {
 			vmSummary[vm.Self]["esx"] = hostSummary[*vm.Summary.Runtime.Host]["name"]
+			vmCount[vmSummary[vm.Self]["esx"]]++
 		}
 
 		// Extra metrics per VM
-		vmExtraMetrics[vm.Self] = make(map[string]int64)
+		vmExtraMetrics[vm.Self] = make(map[string]interface{})
 		vmExtraMetrics[vm.Self]["uptime"] = int64(vm.Summary.QuickStats.UptimeSeconds)
+		vmExtraMetrics[vm.Self]["vm_name"] = vm.Summary.Config.Name
+		vmExtraMetrics[vm.Self]["status"] = vm.Summary.OverallStatus
+		vmExtraMetrics[vm.Self]["ip_address"] = vm.Summary.Guest.IpAddress
+		vmExtraMetrics[vm.Self]["dns_name"] = vm.Summary.Guest.HostName
+		vmExtraMetrics[vm.Self]["guest_os"] = vm.Summary.Config.GuestFullName
+		vmExtraMetrics[vm.Self]["connection_state"] = vm.Summary.Runtime.ConnectionState
+		vmExtraMetrics[vm.Self]["power_state"] = vm.Summary.Runtime.PowerState
+		vmExtraMetrics[vm.Self]["guest_heartbeat_staus"] = vm.Summary.QuickStats.GuestHeartbeatStatus
+		vmExtraMetrics[vm.Self]["cpu_corecount_total"] = int64(vm.Summary.Config.NumCpu)
+		vmExtraMetrics[vm.Self]["memory_size_total"] = int64(vm.Summary.Config.MemorySizeMB)
+		vmExtraMetrics[vm.Self]["eternet_card_total"] = int64(vm.Summary.Config.NumEthernetCards)
+		vmExtraMetrics[vm.Self]["virtual_disk_total"] = int64(vm.Summary.Config.NumVirtualDisks)
+		vmExtraMetrics[vm.Self]["storage_usage"] = int64(vm.Summary.Storage.Committed)
+		vmExtraMetrics[vm.Self]["storage_uncommitted"] = int64(vm.Summary.Storage.Uncommitted)
+		vmExtraMetrics[vm.Self]["storage_unshared"] = int64(vm.Summary.Storage.Unshared)
 	}
 
 	// get object names
@@ -683,8 +707,10 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 
 		for _, pool := range respool {
 			respoolFields := map[string]interface{}{
-				"cpu_limit":    pool.Config.CpuAllocation.GetResourceAllocationInfo().Limit,
-				"memory_limit": pool.Config.MemoryAllocation.GetResourceAllocationInfo().Limit,
+				"cpu_limit":          pool.Config.CpuAllocation.GetResourceAllocationInfo().Limit,
+				"cpu_reservation":    pool.Config.CpuAllocation.GetResourceAllocationInfo().Reservation,
+				"memory_limit":       pool.Config.MemoryAllocation.GetResourceAllocationInfo().Limit,
+				"memory_reservation": pool.Config.MemoryAllocation.GetResourceAllocationInfo().Reservation,
 			}
 			respoolTags := map[string]string{"pool_name": pool.Name}
 			pt3, err := influxclient.NewPoint(config.InfluxDB.Prefix+"resourcepool", respoolTags, respoolFields, time.Now())
@@ -697,8 +723,10 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 
 		for _, datastore := range dss {
 			datastoreFields := map[string]interface{}{
-				"capacity":   datastore.Summary.Capacity,
-				"free_space": datastore.Summary.FreeSpace,
+				"capacity":         datastore.Summary.Capacity,
+				"free_space":       datastore.Summary.FreeSpace,
+				"maintenance_mode": datastore.Summary.MaintenanceMode,
+				"accessible":       datastore.Summary.Accessible,
 			}
 			datastoreTags := map[string]string{"ds_name": datastore.Summary.Name, "host": vcName}
 			pt4, err := influxclient.NewPoint(config.InfluxDB.Prefix+"datastore", datastoreTags, datastoreFields, time.Now())
@@ -813,7 +841,7 @@ func main() {
 	flag.Parse()
 
 	if getversion {
-		stdlog.Println("Version:",version)
+		stdlog.Println("Version:", version)
 		os.Exit(0)
 	}
 
