@@ -302,7 +302,7 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 	// Retrieve properties for hosts
 	var hsmo []mo.HostSystem
 	if len(hostRefs) > 0 {
-		err = pc.Retrieve(ctx, hostRefs, []string{"parent", "summary", "datastore"}, &hsmo)
+		err = pc.Retrieve(ctx, hostRefs, []string{"parent", "summary", "datastore", "vm"}, &hsmo)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -442,6 +442,9 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		hostExtraMetrics[host.Self]["cpu_mhz_toal"] = host.Summary.Hardware.CpuMhz
 		hostExtraMetrics[host.Self]["memory_size_total"] = host.Summary.Hardware.MemorySize
 		hostExtraMetrics[host.Self]["nics_toal"] = host.Summary.Hardware.NumNics
+		if host.Vm != nil {
+			hostExtraMetrics[host.Self]["vm_count"] = len(host.Vm)
+		}
 	}
 
 	// Initialize the maps that will hold the extra tags and metrics for VMs
