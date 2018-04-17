@@ -2,6 +2,7 @@
 
 # Binaries for programs and plugins
 vsphere-influxdb
+vsphere-influxdb-go
 
 # Test binary, build with `go test -c`
 *.test
