@@ -424,7 +424,12 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 	hostSummary := make(map[types.ManagedObjectReference]map[string]string)
 	hostExtraMetrics := make(map[types.ManagedObjectReference]map[string]interface{})
 
+	// Temporary host info fot later use in datastore and other
+	hostDatastoreInfo := make(map[string]map[string]string)
+
 	for _, host := range hsmo {
+
+		hostInfo := make(map[string]string)
 
 		// Extra tags per host
 		hostSummary[host.Self] = make(map[string]string)
@@ -442,9 +447,22 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		hostExtraMetrics[host.Self]["cpu_mhz_toal"] = host.Summary.Hardware.CpuMhz
 		hostExtraMetrics[host.Self]["memory_size_total"] = host.Summary.Hardware.MemorySize
 		hostExtraMetrics[host.Self]["nics_toal"] = host.Summary.Hardware.NumNics
+
+		// Host details for further use
+		hostInfo[host.Self.Value] = host.Summary.Config.Name
+
 		if host.Vm != nil {
 			hostExtraMetrics[host.Self]["vm_count"] = len(host.Vm)
 		}
+		if host.Datastore != nil {
+			hostExtraMetrics[host.Self]["ds_count"] = len(host.Datastore)
+			for _, d := range host.Datastore {
+				hostInfo[d.Value] = ""
+			}
+		}
+
+		// Host details for further use
+		hostDatastoreInfo[host.Self.Value] = hostInfo
 	}
 
 	// Initialize the maps that will hold the extra tags and metrics for VMs
@@ -581,6 +599,8 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		errlog.Println(err)
 		return
 	}
+
+	dsInfo := make(map[string]string)
 
 	for _, base := range perfres.Returnval {
 		pem := base.(*types.PerfEntityMetric)
@@ -725,19 +745,26 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		}
 
 		for _, datastore := range dss {
-			datastoreFields := map[string]interface{}{
-				"capacity":         datastore.Summary.Capacity,
-				"free_space":       datastore.Summary.FreeSpace,
-				"maintenance_mode": datastore.Summary.MaintenanceMode,
-				"accessible":       datastore.Summary.Accessible,
-				"url":              datastore.Summary.Url,
-				"type":             datastore.Summary.Type,
+			var mVMCount, mHostCount int
+			if datastore.Host != nil {
+				mHostCount = len(datastore.Host)
 			}
-			/*			stdlog.Println("==================================")
-						spew.Dump(datastore.Host)
-						stdlog.Println("==================================")
-						spew.Dump(datastore.Vm)
-						stdlog.Println("==================================")*/
+			if datastore.Vm != nil {
+				mVMCount = len(datastore.Vm)
+			}
+
+			dsInfo[datastore.Self.Value] = datastore.Summary.Name
+
+			datastoreFields := map[string]interface{}{
+				"capacity":           datastore.Summary.Capacity,
+				"free_space":         datastore.Summary.FreeSpace,
+				"maintenance_mode":   datastore.Summary.MaintenanceMode,
+				"accessible":         datastore.Summary.Accessible,
+				"url":                datastore.Summary.Url,
+				"type":               datastore.Summary.Type,
+				"mounted_host_count": mHostCount,
+				"mounted_vm_count":   mVMCount,
+			}
 			datastoreTags := map[string]string{"ds_name": datastore.Summary.Name, "host": vcName}
 			pt4, err := influxclient.NewPoint(config.InfluxDB.Prefix+"datastore", datastoreTags, datastoreFields, time.Now())
 			if err != nil {
@@ -747,6 +774,28 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 			bp.AddPoint(pt4)
 		}
 
+	}
+
+	for id, info := range hostDatastoreInfo {
+		for ds, _ := range info {
+			dsName := dsInfo[ds]
+			if (dsName != "") {
+				datastoreTags := map[string]string{
+					"vcenter": vcName,
+					"host":    info[id],
+					"ds_name": dsName,
+				}
+				datastoreFields := map[string]interface{}{
+					"value": dsName,
+				}
+				pt5, err := influxclient.NewPoint(config.InfluxDB.Prefix+"host_datastore", datastoreTags, datastoreFields, time.Now())
+				if err != nil {
+					errlog.Println(err)
+					continue
+				}
+				bp.AddPoint(pt5)
+			}
+		}
 	}
 
 	//InfluxDB send if not in test mode
