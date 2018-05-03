@@ -447,6 +447,8 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		hostExtraMetrics[host.Self]["cpu_mhz_toal"] = host.Summary.Hardware.CpuMhz
 		hostExtraMetrics[host.Self]["memory_size_total"] = host.Summary.Hardware.MemorySize
 		hostExtraMetrics[host.Self]["nics_toal"] = host.Summary.Hardware.NumNics
+		hostExtraMetrics[host.Self]["powered_on_count"] = int64(0)
+		hostExtraMetrics[host.Self]["powered_off_count"] = int64(0)
 
 		// Host details for further use
 		hostInfo[host.Self.Value] = host.Summary.Config.Name
@@ -510,6 +512,15 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		vmExtraMetrics[vm.Self]["storage_usage"] = int64(vm.Summary.Storage.Committed)
 		vmExtraMetrics[vm.Self]["storage_uncommitted"] = int64(vm.Summary.Storage.Uncommitted)
 		vmExtraMetrics[vm.Self]["storage_unshared"] = int64(vm.Summary.Storage.Unshared)
+		if vm.Summary.Runtime.PowerState == types.VirtualMachinePowerStatePoweredOn {
+			val, _ := hostExtraMetrics[*vm.Summary.Runtime.Host]["powered_on_count"].(int64)
+			val++
+			hostExtraMetrics[*vm.Summary.Runtime.Host]["powered_on_count"] = val
+		} else if vm.Summary.Runtime.PowerState == types.VirtualMachinePowerStatePoweredOff {
+			val, _ := hostExtraMetrics[*vm.Summary.Runtime.Host]["powered_off_count"].(int64)
+			val++
+			hostExtraMetrics[*vm.Summary.Runtime.Host]["powered_off_count"] = val
+		}
 	}
 
 	// get object names
@@ -601,7 +612,6 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 	}
 
 	dsInfo := make(map[string]string)
-
 	for _, base := range perfres.Returnval {
 		pem := base.(*types.PerfEntityMetric)
 		entityName := strings.ToLower(pem.Entity.Type)
