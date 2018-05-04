@@ -876,6 +876,11 @@ func average(n ...int64) int64 {
 	return int64(math.Floor(favg + .5))
 }
 
+const (
+	VCenterStatusUp   = 0
+	VCenterStatusDown = 1
+)
+
 func worker(id int, config Configuration, influxDBClient influxclient.Client, nowTime time.Time, vcenters <-chan *VCenter, results chan<- bool) {
 	for vcenter := range vcenters {
 		if debug {
@@ -884,9 +889,12 @@ func worker(id int, config Configuration, influxDBClient influxclient.Client, no
 
 		if err := vcenter.Connect(); err != nil {
 			errlog.Println("Could not initialize connection to vcenter", vcenter.Hostname, err)
+			writeVCenterStatus(influxDBClient, config, vcenter.Hostname, VCenterStatusDown)
 			results <- true
 			continue
 		}
+
+		writeVCenterStatus(influxDBClient, config, vcenter.Hostname, VCenterStatusUp)
 
 		if err := vcenter.Init(config); err == nil {
 			vcenter.Query(config, influxDBClient, nowTime)
@@ -894,6 +902,36 @@ func worker(id int, config Configuration, influxDBClient influxclient.Client, no
 
 		vcenter.Disconnect()
 		results <- true
+	}
+}
+
+func writeVCenterStatus(influxDBClient influxclient.Client, config Configuration, hostname string, status int64) {
+	//Influx batch points
+	bp, err := influxclient.NewBatchPoints(influxclient.BatchPointsConfig{
+		Database:  config.InfluxDB.Database,
+		Precision: "s",
+	})
+	if err != nil {
+		errlog.Println(err)
+		return
+	}
+	tags := map[string]string{
+		"host":   hostname,
+		"domain": config.Domain,
+	}
+	fields := map[string]interface{}{
+		"status": status,
+	}
+	pt, err := influxclient.NewPoint(config.InfluxDB.Prefix+"vcenter", tags, fields, time.Now())
+	if err != nil {
+		errlog.Println(err)
+		return
+	}
+	bp.AddPoint(pt)
+	err = influxDBClient.Write(bp)
+	if err != nil {
+		errlog.Println(err)
+		return
 	}
 }
 
