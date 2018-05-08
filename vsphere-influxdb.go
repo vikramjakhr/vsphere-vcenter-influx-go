@@ -498,12 +498,12 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		vmExtraMetrics[vm.Self] = make(map[string]interface{})
 		vmExtraMetrics[vm.Self]["uptime"] = int64(vm.Summary.QuickStats.UptimeSeconds)
 		vmExtraMetrics[vm.Self]["vm_name"] = vm.Summary.Config.Name
-		vmExtraMetrics[vm.Self]["status"] = vm.Summary.OverallStatus
+		vmExtraMetrics[vm.Self]["status"] = overallStatus(vm.Summary.OverallStatus)
 		vmExtraMetrics[vm.Self]["ip_address"] = vm.Summary.Guest.IpAddress
 		vmExtraMetrics[vm.Self]["dns_name"] = vm.Summary.Guest.HostName
 		vmExtraMetrics[vm.Self]["guest_os"] = vm.Summary.Config.GuestFullName
-		vmExtraMetrics[vm.Self]["connection_state"] = vm.Summary.Runtime.ConnectionState
-		vmExtraMetrics[vm.Self]["power_state"] = vm.Summary.Runtime.PowerState
+		vmExtraMetrics[vm.Self]["connection_state"] = virtualMachineConnectionState(vm.Summary.Runtime.ConnectionState)
+		vmExtraMetrics[vm.Self]["power_state"] = virtualMachinePowerState(vm.Summary.Runtime.PowerState)
 		vmExtraMetrics[vm.Self]["guest_heartbeat_staus"] = vm.Summary.QuickStats.GuestHeartbeatStatus
 		vmExtraMetrics[vm.Self]["cpu_corecount_total"] = int64(vm.Summary.Config.NumCpu)
 		vmExtraMetrics[vm.Self]["memory_size_total"] = int64(vm.Summary.Config.MemorySizeMB)
@@ -1032,4 +1032,49 @@ func main() {
 		<-results
 	}
 
+}
+
+func overallStatus(status types.ManagedEntityStatus) int64 {
+	switch status {
+	case types.ManagedEntityStatusGreen:
+		return 0
+	case types.ManagedEntityStatusRed:
+		return 1
+	case types.ManagedEntityStatusGray:
+		return 2
+	case types.ManagedEntityStatusYellow:
+		return 3
+	default:
+		return 4
+	}
+}
+
+func virtualMachinePowerState(state types.VirtualMachinePowerState) int64 {
+	switch state {
+	case types.VirtualMachinePowerStatePoweredOn:
+		return 0
+	case types.VirtualMachinePowerStatePoweredOff:
+		return 1
+	case types.VirtualMachinePowerStateSuspended:
+		return 2
+	default:
+		return 3
+	}
+}
+
+func virtualMachineConnectionState(state types.VirtualMachineConnectionState) int64 {
+	switch state {
+	case types.VirtualMachineConnectionStateConnected:
+		return 0
+	case types.VirtualMachineConnectionStateDisconnected:
+		return 1
+	case types.VirtualMachineConnectionStateInaccessible:
+		return 2
+	case types.VirtualMachineConnectionStateOrphaned:
+		return 3
+	case types.VirtualMachineConnectionStateInvalid:
+		return 4
+	default:
+		return 5
+	}
 }
