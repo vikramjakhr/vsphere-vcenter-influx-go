@@ -104,4 +104,3 @@ The original project, upon which this one is based, is written by cblomart, send
 
 This one is licensed under GPLv3. You can find a copy of the license in [LICENSE.txt](./LICENSE.txt)
 
-
