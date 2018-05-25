@@ -10,9 +10,6 @@ vsphere-influxdb-go
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Configuration file
-vsphere-influxdb.json
-
 # Vim swap files
 *.swp
 
