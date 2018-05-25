@@ -100,11 +100,3 @@ $GOBIN/vsphere-vcenter-influx-go
 
 # Contributing
 You are welcome to contribute!
-
-# License 
-
-The original project, upon which this one is based, is written by cblomart, sends the data to Graphite, and is available [here](https://github.com/cblomart/vsphere-graphite). 
-
-This one is licensed under GPLv3. You can find a copy of the license in [LICENSE.txt](./LICENSE.txt)
-
-
