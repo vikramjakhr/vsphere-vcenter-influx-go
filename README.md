@@ -21,7 +21,7 @@ wget https://github.com/vikramjakhr/vsphere-vcenter-influx-go/releases/download/
 ```
 Step 2: Download the config json after executing below command, and do changes related to host and influx configuration
 ```
-wget https://github.com/vikramjakhr/vsphere-vcenter-influx-go/blob/master/vsphere-influxdb.json
+wget https://raw.githubusercontent.com/vikramjakhr/vsphere-vcenter-influx-go/master/vsphere-influxdb.json
 ```
 
 Step 3: Now make the binary executable by running below command
