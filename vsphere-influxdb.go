@@ -445,7 +445,7 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		hostExtraMetrics[host.Self]["hardware_model"] = host.Summary.Hardware.Model
 		hostExtraMetrics[host.Self]["cpu_model"] = host.Summary.Hardware.CpuModel
 		hostExtraMetrics[host.Self]["cpu_mhz_total"] = host.Summary.Hardware.CpuMhz
-		hostExtraMetrics[host.Self]["memory_size_total"] = host.Summary.Hardware.MemorySize
+		hostExtraMetrics[host.Self]["memory_size_total"] = host.Summary.Hardware.MemorySize / 1024
 		hostExtraMetrics[host.Self]["nics_toal"] = host.Summary.Hardware.NumNics
 		hostExtraMetrics[host.Self]["powered_on_count"] = int64(0)
 		hostExtraMetrics[host.Self]["powered_off_count"] = int64(0)
@@ -508,7 +508,7 @@ func (vcenter *VCenter) Query(config Configuration, InfluxDBClient influxclient.
 		vmExtraMetrics[vm.Self]["cpu_corecount_total"] = int64(vm.Summary.Config.NumCpu)
 		vmExtraMetrics[vm.Self]["host_cpu_corecount_total"] = hostExtraMetrics[*vm.Summary.Runtime.Host]["cpu_corecount_total"]
 		vmExtraMetrics[vm.Self]["host_cpu_mhz_total"] = hostExtraMetrics[*vm.Summary.Runtime.Host]["cpu_mhz_total"]
-		vmExtraMetrics[vm.Self]["memory_size_total"] = int64(vm.Summary.Config.MemorySizeMB)
+		vmExtraMetrics[vm.Self]["memory_size_total"] = int64(vm.Summary.Config.MemorySizeMB) * 1024
 		vmExtraMetrics[vm.Self]["eternet_card_total"] = int64(vm.Summary.Config.NumEthernetCards)
 		vmExtraMetrics[vm.Self]["virtual_disk_total"] = int64(vm.Summary.Config.NumVirtualDisks)
 		vmExtraMetrics[vm.Self]["storage_usage"] = int64(vm.Summary.Storage.Committed)
